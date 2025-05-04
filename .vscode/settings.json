@@ -9,6 +9,6 @@
   "jupyter.askForKernelRestart": false,
   "github.copilot.enable": true,
   "python.terminal.activateEnvironment": true,
-  "jupyter.interactiveWindow.creationMode": "perFile",
-  "jupyter.interactiveWindow.textEditor.executeSelection": true
+  "jupyter.sendSelectionToInteractiveWindow": true,
+  "jupyter.interactiveWindowMode": "perFile"
 }
