@@ -180,10 +180,9 @@ def fun_mc_viscocity(data):
 
 #%%
 # =============================================================================
-# Module allegiance Using Louvain method 
-#Maybe add Leiden
+# Modularity computing functions - Using und sign Louvain method   
+#Maybe add Leiden ? 
 # =============================================================================
-
 
 def _run_louvain(mc_data, gamma):
     Ci, Q = bct.modularity.modularity_louvain_und_sign(mc_data, gamma=gamma)
@@ -256,8 +255,9 @@ def contingency_matrix_fun(n_runs, mc_data, gamma_range=10, gmin= 0.8, gmax=1.3,
 
     return contingency_matrix, gamma_qmod_val, gamma_agreement_mat
 
-#%%
+
 def allegiance_matrix_analysis(mc_mean_template, n_runs=100, gamma_pt=10, cache_path=None, ref_name='', n_jobs=-1):
+
     """
     Wrapper to compute allegiance communities and sorting indices.
 
@@ -290,18 +290,16 @@ def allegiance_matrix_analysis(mc_mean_template, n_runs=100, gamma_pt=10, cache_
         n_jobs=n_jobs
     )
 
-    
-
     allegancy_communities, allegancy_modularity_q = bct.modularity.modularity_louvain_und(contingency_matrix, gamma=1.2)
     argsort_allegancy_communities = np.argsort(allegancy_communities)
 
     return allegancy_communities, argsort_allegancy_communities, allegancy_modularity_q, contingency_matrix
 
-#%%
 def fun_allegiance_communities(mc_data, n_runs=1000, gamma_pt=100, ref_name=None, save_path=None, n_jobs=-1):
-    """
+    """ 
     Compute allegiance communities from a single or multiple mc matrices.
 
+    
     Parameters:
         mc_data: 2D or 3D ndarray
         n_runs: int
@@ -350,7 +348,7 @@ def fun_allegiance_communities(mc_data, n_runs=1000, gamma_pt=100, ref_name=None
 
 #%%
 # =============================================================================
-# Modularity
+# Modularity functions
 # =============================================================================
 def intramodule_indices_mask(allegancy_communities):
     
@@ -379,47 +377,150 @@ def intramodule_indices_mask(allegancy_communities):
     
     return intramodules_idx, intramodule_indices, mc_modules_mask
 
+#%%
 # =============================================================================
-# Trimers
+# MC FC - connectivity indices 
 # =============================================================================
+# The following functions are used to compute the indices of the functional connectivity (FC) and meta-connectivity (MC) matrices.
 def get_fc_mc_indices(regions):
+    """
+    Get the indices of the functional connectivity (FC) and meta-connectivity (MC) matrices
+    for a given number of regions.
+    The function returns the indices for both FC and MC matrices.
+
+    Parameters:
+    ----------     
+    regions : int
+        The number of regions in the functional connectivity matrix.
+    Returns:
+    -------
+    fc_idx : (N,2) ndarray
+        The indices of the functional connectivity matrix.
+    mc_idx : (M,2) ndarray
+        The indices of the meta-connectivity matrix.
+    """
+    # Get the indices of the lower triangular part of the functional connectivity matrix
+    # and the meta-connectivity matrix
+    # The lower triangular part is used to avoid redundancy in the connectivity matrices.
+    # The k=-1 argument excludes the diagonal.
+    # The fc_idx and mc_idx arrays are used to index the functional connectivity and
+    # meta-connectivity matrices, respectively.    
     fc_idx = np.array(np.tril_indices(regions, k=-1)).T
     mc_idx = np.array(np.tril_indices(fc_idx.shape[0], k=-1)).T
     return fc_idx, mc_idx
 
 
 def get_mc_region_identities(fc_idx, mc_idx):
+    """
+    Get the region identities for the functional connectivity (FC) and meta-connectivity (MC) matrices.
+    The function reshapes the indices to group them into sets of 4 (representing connections
+    between 4 regions) and transposes the result to make each column represent a meta-connection.
+    Parameters:
+    ----------
+    fc_idx : (N,2) ndarray
+        The indices of the functional connectivity matrix.
+    mc_idx : (M,2) ndarray
+        The indices of the meta-connectivity matrix.
+    Returns:
+    -------
+    mc_reg_idx : (4, M) ndarray
+        The reshaped indices for the meta-connectivity matrix.
+    fc_reg_idx : (2, M) ndarray
+        The reshaped indices for the functional connectivity matrix.
+    """
+ 
     fc_reg_idx = fc_idx[mc_idx]  # shape: (n_mc, 2, 2)
-    mc_reg_idx = fc_reg_idx.reshape(-1, 4).T  # shape: (4, n_mc)
+    mc_reg_idx = fc_reg_idx.reshape(-1, 4).T  # shape: (4, n_mc)    
     return mc_reg_idx, fc_reg_idx
 
-# def get_mc_region_identities(fc_idx, mc_idx, sort_ref):
-#     aux_fc = fc_idx[sort_ref]
-#     fc_reg_idx = aux_fc[mc_idx]  # shape: (n_mc, 2, 2)
-#     mc_reg_idx = fc_reg_idx.reshape(-1, 4).T  # shape: (4, n_mc)
-#     return mc_reg_idx, fc_reg_idx
+#%%
+# =============================================================================
+# Trimers
+# =============================================================================
+# Compute trimer-based mask and index for meta-connectivity matrix
 
 def compute_trimers_identity(regions):
+    """
+    Compute the indices of trimers in the meta-connectivity matrix.
+    A trimer is defined as a set of three unique nodes among the four defining a meta-connection.
+    The function returns the indices of the trimers, their region identities, and the apex node.
+
+    Parameters
+    ----------
+    regions : int
+        The number of regions in the functional connectivity matrix.
+
+    Returns
+    -------
+    trimer_idx : (2, M) ndarray
+        The indices of the trimers in the meta-connectivity matrix.
+    trimer_reg_id : (4, M) ndarray
+        The region identities of the trimers.
+    trimer_apex : (M,) ndarray
+        The apex node of each trimer.
+    """
+    # Get FC and MC indices
     fc_idx, mc_idx = get_fc_mc_indices(regions)
-    aux_identity = fc_idx[mc_idx]
-    mc_reg_idx = aux_identity.reshape(-1, 4)  # shape: (n_mc, 4)
+    mc_reg_idx, _ = get_mc_region_identities(fc_idx, mc_idx)
 
-    # Find trimers: exactly 3 unique nodes among the 4 defining a meta-connection
-    unique_counts = np.array([len(np.unique(row)) for row in mc_reg_idx])
+    # Identify trimers: rows with exactly 3 unique nodes
+    unique_counts = np.apply_along_axis(lambda row: len(np.unique(row)), axis=0, arr=mc_reg_idx)
     trimer_mask = unique_counts == 3
-    trimer_idx = mc_idx[trimer_mask].T
-    trimer_reg_id = mc_reg_idx[trimer_mask]
 
-    # Find apex node (node that appears twice)
-    trimer_apex = np.array([
-        np.unique(row, return_counts=True)[0][
-            np.unique(row, return_counts=True)[1] > 1
-        ][0] if len(np.unique(row, return_counts=True)[0][
-            np.unique(row, return_counts=True)[1] > 1]) > 0 else np.nan
-        for row in trimer_reg_id
-    ])
+    # Extract trimer indices and region identities
+    trimer_idx = mc_idx[trimer_mask].T
+    trimer_reg_id = mc_reg_idx[:, trimer_mask]
+
+    # Find apex nodes (nodes appearing twice in a trimer)
+    def find_apex(row):
+        unique_nodes, counts = np.unique(row, return_counts=True)
+        apex_candidates = unique_nodes[counts > 1]
+        return apex_candidates[0] if len(apex_candidates) > 0 else np.nan
+
+    trimer_apex = np.apply_along_axis(find_apex, axis=0, arr=trimer_reg_id)
 
     return trimer_idx, trimer_reg_id, trimer_apex
+
+# def compute_trimers_identity_old(regions):
+#     """
+#     Compute the indices of trimers in the meta-connectivity matrix.
+#     A trimer is defined as a set of three unique nodes among the four defining a meta-connection.
+#     The function returns the indices of the trimers, their region identities, and the apex node.
+#     Parameters:
+#     ----------
+#     regions : int
+#         The number of regions in the functional connectivity matrix.
+#     Returns:
+#     -------
+#     trimer_idx : (2, M) ndarray
+#         The indices of the trimers in the meta-connectivity matrix.
+#     trimer_reg_id : (4, M) ndarray
+#         The region identities of the trimers.
+#     trimer_apex : (M,) ndarray
+#         The apex node of each trimer.
+#     """
+
+#     fc_idx, mc_idx = get_fc_mc_indices(regions)
+
+#     mc_reg_idx, _ = get_mc_region_identities(fc_idx, mc_idx)
+#     mc_reg_idx = mc_reg_idx.T#, mc_ref_allegiance_sort)
+
+#     # Find trimers: exactly 3 unique nodes among the 4 defining a meta-connection
+#     unique_counts = np.array([len(np.unique(row)) for row in mc_reg_idx])
+#     trimer_mask = unique_counts == 3
+#     trimer_idx = mc_idx[trimer_mask].T
+#     trimer_reg_id = mc_reg_idx[trimer_mask]
+
+#     # Find apex node (node that appears twice)
+#     trimer_apex = np.array([
+#         np.unique(row, return_counts=True)[0][
+#             np.unique(row, return_counts=True)[1] > 1
+#         ][0] if len(np.unique(row, return_counts=True)[0][
+#             np.unique(row, return_counts=True)[1] > 1]) > 0 else np.nan
+#         for row in trimer_reg_id
+#     ])
+
+#     return trimer_idx, trimer_reg_id, trimer_apex
 
 def build_trimer_mask(trimer_idx, trimer_apex, n_fc_edges):
     mask = np.zeros((n_fc_edges, n_fc_edges))

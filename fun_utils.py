@@ -83,6 +83,7 @@ def get_paths(
         'sorted': root / 'results/sorted_data/',
         'mc_mod': root / 'results/mc_mod/',
         'allegiance': root / 'results/allegiance/',
+        'trimers': root / 'results/trimers/',
         'figures': root / 'fig',
         'fmodularity': root / 'fig/modularity',
         

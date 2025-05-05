@@ -135,7 +135,8 @@ mc_ref_allegiance_sort   = data_mc_mod['mc_ref_allegiance_sort']
 fc_reg_idx             = data_mc_mod['fc_reg_idx']
 mc_reg_idx             = data_mc_mod['mc_reg_idx']
 mc_mod_idx             = data_mc_mod['mc_mod_idx']
-#%%
+#%% ========================Trimers==========================================
+
 # =============================================================================
 # Compute Trimers
 # =============================================================================
@@ -146,6 +147,21 @@ n_fc_edges = int(regions * (regions - 1) / 2)
 mc_nplets_mask = build_trimer_mask(trimer_index, trimer_apex, n_fc_edges)
 mc_nplets_mask = mc_nplets_mask[mc_ref_allegiance_sort][:, mc_ref_allegiance_sort]
 mc_nplets_index = mc_nplets_mask[mc_idx[:, 0], mc_idx[:, 1]]
+#%% Save trimers
+# Save the computed data
+save_filename = (
+    paths['trimers'] / 
+    f"trimers_allegiance_ref(runs={label_ref}_gammaval={n_runs_allegiance})={gamma_pt_allegiance}_lag={lag}_windowsize={window_size}_animals={n_animals}_regions={regions}.npz".replace(' ','')
+)
+
+# Ensure the directory exists before saving
+save_filename.parent.mkdir(parents=True, exist_ok=True)
+
+np.savez_compressed(
+    save_filename,
+    nplets_index                      = mc_nplets_index,
+    nplets_mask                      = mc_nplets_mask,
+)
 #%%
 # =============================================================================
 # Genuine Trimers Analysis
@@ -162,7 +178,9 @@ def ts2fc(timeseries, format_data='2D', method='pearson'):
     elif format_data == '1D':
         return fc[np.tril_indices_from(fc, k=-1)]
 
-fc = np.array([ts2fc(ts[animal], format_data='2D', method='pearson') for animal in range(n_animals)])
+fc = np.array([ts2fc(ts[animal], format_data='2D', method='pearson') 
+               for animal in range(n_animals)
+               ])
 fc_values = fc[:, fc_idx[:, 0], fc_idx[:, 1]]
 
 # Genuine trimers: MC_{ir,jr} > FC_{i,j}

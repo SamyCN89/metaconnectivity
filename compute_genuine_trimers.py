@@ -262,6 +262,7 @@ def trimers_leaves_fc(arr):
     non_repeated = unique[counts == 1]
     repeated = unique[counts == 2]
     return non_repeated
+
 def trimers_root_fc(arr):
     flat = arr.flatten()
     unique, counts = np.unique(flat, return_counts=True)

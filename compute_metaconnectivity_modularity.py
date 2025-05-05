@@ -186,35 +186,35 @@ np.savez_compressed(
 # #Threshold for the FC_{ij}
 # # =============================================================================
 
-# #Compute FC
-# def ts2fc(timeseries, format_data = '2D', method='pearson'):
-#     """
-#     Calculate functional connectivity from time series data.
+#Compute FC
+def ts2fc(timeseries, format_data = '2D', method='pearson'):
+    """
+    Calculate functional connectivity from time series data.
     
-#     Parameters:
-#     timeseries (array): Time series data of shape (timepoints, nodes).
-#     format_data (str): Output format, '2D' for full matrix or '1D' for lower-triangular vector.
+    Parameters:
+    timeseries (array): Time series data of shape (timepoints, nodes).
+    format_data (str): Output format, '2D' for full matrix or '1D' for lower-triangular vector.
     
-#     Returns:
-#     fc (array): Functional connectivity matrix ('2D') or vector ('1D').
+    Returns:
+    fc (array): Functional connectivity matrix ('2D') or vector ('1D').
     
-#     Adapted from Lucas Arbabyazd et al 2020. Methods X, doi: 10.1016/j.neuroimage.2020.117156
-#     """
-#     # Calculate correlation coefficient matrix
-#     if method=='pearson':
-#         fc = fast_corrcoef(timeseries)
+    Adapted from Lucas Arbabyazd et al 2020. Methods X, doi: 10.1016/j.neuroimage.2020.117156
+    """
+    # Calculate correlation coefficient matrix
+    if method=='pearson':
+        fc = fast_corrcoef(timeseries)
 
-#         # fc = np.corrcoef(timeseries.T)
-#     elif method=='plv':
-#         fc = compute_plv_matrix_vectorized(timeseries.T)
+        # fc = np.corrcoef(timeseries.T)
+    elif method=='plv':
+        fc = compute_plv_matrix_vectorized(timeseries.T)
 
-#     # Optionally zero out the diagonal for '2D' format
-#     if format_data=='2D':
-#         np.fill_diagonal(fc,0)#fill the diagonal with 0
-#         return fc
-#     elif format_data=='1D':
-#         # Return the lower-triangular part excluding the diagonal
-#         return fc[np.tril_indices_from(fc, k=-1)]
+    # Optionally zero out the diagonal for '2D' format
+    if format_data=='2D':
+        np.fill_diagonal(fc,0)#fill the diagonal with 0
+        return fc
+    elif format_data=='1D':
+        # Return the lower-triangular part excluding the diagonal
+        return fc[np.tril_indices_from(fc, k=-1)]
 # # animal=0
 # fc = np.array([ts2fc(ts[animal], format_data = '2D', method='pearson') 
 #                for animal in range(n_animals)
