@@ -34,7 +34,7 @@ from fun_optimization import fast_corrcoef#, fast_corrcoef_numba, fast_corrcoef_
 
 
 
-def variables_selector(bool_index1, bool_index2, index1_label = 'Good', index2_label = 'Impaired'):
+def variables_selector(bool_index1, bool_index2, is_2month_old, index1_label = 'Good', index2_label = 'Impaired'):
     
     index1 = np.tile(bool_index1,2)
     index2 = np.tile(bool_index2,2)
@@ -55,19 +55,46 @@ def variables_selector(bool_index1, bool_index2, index1_label = 'Good', index2_l
 #%%Metaconnectivity
 def compute_metaconnectivity(ts_data, window_size=7, lag=1, return_dfc=False, save_path=None, n_jobs=-1):
     """
-    Compute or load cached meta-connectivity (MC) from time-series data in parallel.
+    This function calculates meta-connectivity matrices from time-series data using 
+    a sliding window approach. It supports parallel computation and caching of results 
+    to optimize performance.
 
-    Parameters:
-    - ts_data: np.ndarray (n_animals, n_regions, n_timepoints)
-    - window_size: int
-    - lag: int
-    - return_dfc: bool
-    - save_path: str or None
-    - n_jobs: int, number of parallel jobs (-1 = all cores)
+    -----------
+    ts_data : np.ndarray
+        A 3D array of shape (n_animals, n_regions, n_timepoints) representing the 
+        time-series data for multiple animals and brain regions.
+    window_size : int, optional
+        The size of the sliding window used for dynamic functional connectivity (DFC) 
+        computation. Default is 7.
+    lag : int, optional
+        The lag parameter for time-series analysis. Default is 1.
+    return_dfc : bool, optional
+        If True, the function also returns the DFC stream. Default is False.
+    save_path : str or None, optional
+        The directory path where the computed meta-connectivity and DFC stream will 
+        be saved. If None, results are not saved. Default is None.
+    n_jobs : int, optional
+        The number of parallel jobs to use for computation. Use -1 to utilize all 
+        available CPU cores. Default is -1.
 
-    Returns:
-    - mc: np.ndarray
-    - dfc_stream: np.ndarray (optional)
+    --------
+    mc : np.ndarray
+        A 3D array of meta-connectivity matrices for each animal.
+    dfc_stream : np.ndarray, optional
+        A 4D array of DFC streams for each animal, returned only if `return_dfc` is True.
+
+    Notes:
+    ------
+    - If a `save_path` is provided and a cached result exists, the function will load 
+      the cached data instead of recomputing it.
+    - The function uses joblib for parallel computation, with the "loky" backend.
+    - The meta-connectivity matrices are computed by correlating the DFC streams.
+
+    Examples:
+    ---------
+    # Example usage:
+    mc = compute_metaconnectivity(ts_data, window_size=10, lag=2, save_path="./cache")
+    mc, dfc_stream = compute_metaconnectivity(ts_data, return_dfc=True, n_jobs=4)
     """
 
     n_animals, tr_points, nodes  = ts_data.shape
@@ -360,11 +387,17 @@ def get_fc_mc_indices(regions):
     mc_idx = np.array(np.tril_indices(fc_idx.shape[0], k=-1)).T
     return fc_idx, mc_idx
 
-def get_mc_region_identities(fc_idx, mc_idx, sort_ref):
-    aux_fc = fc_idx[sort_ref]
-    fc_reg_idx = aux_fc[mc_idx]  # shape: (n_mc, 2, 2)
+
+def get_mc_region_identities(fc_idx, mc_idx):
+    fc_reg_idx = fc_idx[mc_idx]  # shape: (n_mc, 2, 2)
     mc_reg_idx = fc_reg_idx.reshape(-1, 4).T  # shape: (4, n_mc)
     return mc_reg_idx, fc_reg_idx
+
+# def get_mc_region_identities(fc_idx, mc_idx, sort_ref):
+#     aux_fc = fc_idx[sort_ref]
+#     fc_reg_idx = aux_fc[mc_idx]  # shape: (n_mc, 2, 2)
+#     mc_reg_idx = fc_reg_idx.reshape(-1, 4).T  # shape: (4, n_mc)
+#     return mc_reg_idx, fc_reg_idx
 
 def compute_trimers_identity(regions):
     fc_idx, mc_idx = get_fc_mc_indices(regions)
