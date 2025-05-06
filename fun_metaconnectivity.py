@@ -29,28 +29,7 @@ from fun_optimization import fast_corrcoef#, fast_corrcoef_numba, fast_corrcoef_
 # from scipy.stats import pearsonr, spearmanr
 
 # from scipy.spatial.distance import squareform
-# from scipy.cluster.hierarchy import linkage, fcluster
 
-
-
-
-def variables_selector(bool_index1, bool_index2, is_2month_old, index1_label = 'Good', index2_label = 'Impaired'):
-    
-    index1 = np.tile(bool_index1,2)
-    index2 = np.tile(bool_index2,2)
-    
-    #animals specific index
-    index1_cond_age1 = np.logical_and(index1, is_2month_old)
-    index1_cond_age2 = np.logical_and(index1, ~is_2month_old)
-    index2_cond_age1 = np.logical_and(index2, is_2month_old)
-    index2_cond_age2 = np.logical_and(index2, ~is_2month_old)
-    
-    variables_setbool = (index1_cond_age1, index1_cond_age2, 
-                         index2_cond_age1, index2_cond_age2)
-    
-    label_variables = (index1_label + ' 2m', index1_label + ' 4m', index2_label + ' 2m', index2_label + ' 4m')
-
-    return index1, index2, index1_label, index2_label, variables_setbool, label_variables
 
 #%%Metaconnectivity
 def compute_metaconnectivity(ts_data, window_size=7, lag=1, return_dfc=False, save_path=None, n_jobs=-1):
@@ -153,44 +132,42 @@ def compute_metaconnectivity(ts_data, window_size=7, lag=1, return_dfc=False, sa
 
 #%%
 # =============================================================================
-# Analysis on Metaconnectivity 
-# =============================================================================
-def fun_mc_viscocity(data):
-    """
-    Compute viscocity from array of trials and their MC, the first dimension must be the trials
-
-    Parameters
-    ----------
-    data : N,M,M np.array 
-        the trials MC.
-
-    Returns
-    -------
-    mc_viscocity_val : N, MC neg values
-        The first dimesion is trials, the next is variable and are list of the negative values.
-    mc_viscocity_mask : M,M bool
-        The mask is a boolean of the data that is true for negative value.
-    """
-    n_trials = data.shape[0]
-    
-    data = copy.deepcopy(data)
-    mc_viscocity_mask = (data<0)
-    mc_viscocity_val = np.array([data[i,mc_viscocity_mask[i]] for i in range(n_trials)] ,dtype='object')
-    return mc_viscocity_val, mc_viscocity_mask
-
-#%%
-# =============================================================================
-# Modularity computing functions - Using und sign Louvain method   
-#Maybe add Leiden ? 
+# Allegiance computing functions - Using und sign Louvain method
+# Maybe add Leiden ? 
 # =============================================================================
 
+# Louvain method for community detection function
 def _run_louvain(mc_data, gamma):
+    """
+    Run Louvain community detection on the N,N data.
+    """
     Ci, Q = bct.modularity.modularity_louvain_und_sign(mc_data, gamma=gamma)
     return np.asanyarray(Ci, dtype=np.int32), Q
 
 def _build_agreement_matrix(communities):
     """
     Vectorized computation of agreement matrix from community labels.
+    This function computes the agreement matrix for a list of community labels.
+    Each community label is a 1D array of integers representing the community
+    assignment of each node. The agreement matrix is a 2D array where the entry
+    (i, j) represents the number of communities that nodes i and j belong to.
+    The function uses broadcasting to efficiently compute the agreement matrix
+    without explicit loops.
+    Parameters
+    ----------
+    communities : list of 1D arrays
+        List of community labels for each run. Each array should have the same length.
+    Returns
+    -------
+    agreement : 2D array
+        The agreement matrix, where entry (i, j) represents the number of communities
+        that nodes i and j belong to.
+    Notes
+    -----
+    - The function assumes that all community labels are integers starting from 0.
+    - The function uses broadcasting to compute the agreement matrix efficiently.
+    - The resulting agreement matrix is symmetric and has the same shape as the input
+      community labels.
     """
     n_nodes = communities[0].shape[0]
     agreement = np.zeros((n_nodes, n_nodes), dtype=np.float64)
@@ -564,3 +541,17 @@ def trimers_by_apex(trimer_values, trimer_reg_apex):
     return regval
 
 # trimers_per_region = np.array(trimers_by_apex(trimers_mc_values, trimer_reg_apex))
+
+#%%Genuine trimers
+def trimers_leaves_fc(arr):
+    flat = arr.flatten()
+    unique, counts = np.unique(flat, return_counts=True)
+    non_repeated = unique[counts == 1]
+    repeated = unique[counts == 2]
+    return non_repeated
+def trimers_root_fc(arr):
+    flat = arr.flatten()
+    unique, counts = np.unique(flat, return_counts=True)
+    # non_repeated = unique[counts == 1]
+    repeated = unique[counts == 2]
+    return repeated

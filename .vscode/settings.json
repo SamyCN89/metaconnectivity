@@ -7,8 +7,16 @@
   "editor.formatOnSave": true,
   "files.autoSave": "afterDelay",
   "jupyter.askForKernelRestart": false,
-  "github.copilot.enable": true,
+  "github.copilot.enable": {
+    "*": true,
+    "plaintext": false,
+    "markdown": false,
+    "scminput": false,
+    "python": true,
+    "c": true
+  },
   "python.terminal.activateEnvironment": true,
   "jupyter.interactiveWindow.creationMode": "perFile",
-  "jupyter.interactiveWindow.textEditor.executeSelection": true
+  "jupyter.interactiveWindow.textEditor.executeSelection": true,
+  "github.copilot.nextEditSuggestions.enabled": true
 }

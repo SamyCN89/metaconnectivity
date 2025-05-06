@@ -169,13 +169,6 @@ def ts2dfc_stream_old(ts, windows_size, lag=None, format_data='2D', method='pear
             dfc_stream[:, k]    = ts2fc(ts[wstart:wstop, :], '1D', method=method)  # Assuming TS2FC returns a vector
         elif format_data == '3D':
             dfc_stream[:, :, k] = ts2fc(ts[wstart:wstop, :], '2D',method=method)  # Assuming TS2FC returns a matrix
-    # for k in range(frames):
-    #     wstart = k * lag
-    #     wstop = wstart + windows_size
-    #     window = ts[wstart:wstop, :]
-    #     fc = ts2fc(window, format_data='1D' if format_data == '2D' else '2D', method=method)
-    #     dfc_stream[:, k] = fc if format_data == '2D' else None
-    #     if format_data == '3D':
     #         dfc_stream[:, :, k] = fc
     return dfc_stream
 
@@ -206,7 +199,7 @@ def dfc_stream2fcd(dfc_stream):
     
     return dfc
 
-
+#%%
 # =============================================================================
 # Speed functions
 # =============================================================================

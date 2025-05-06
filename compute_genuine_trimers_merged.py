@@ -20,7 +20,7 @@ from pathlib import Path
 import pickle
 
 from fun_loaddata import *
-from fun_dfcspeed import *
+from fun_dfcspeed import ts2fc
 from fun_metaconnectivity import (
     compute_metaconnectivity, 
     fun_allegiance_communities, 
@@ -167,17 +167,6 @@ np.savez_compressed(
 # Genuine Trimers Analysis
 # =============================================================================
 # Compute Functional Connectivity (FC)
-def ts2fc(timeseries, format_data='2D', method='pearson'):
-    if method == 'pearson':
-        fc = fast_corrcoef(timeseries)
-    elif method == 'plv':
-        fc = compute_plv_matrix_vectorized(timeseries.T)
-    if format_data == '2D':
-        np.fill_diagonal(fc, 0)
-        return fc
-    elif format_data == '1D':
-        return fc[np.tril_indices_from(fc, k=-1)]
-
 fc = np.array([ts2fc(ts[animal], format_data='2D', method='pearson') 
                for animal in range(n_animals)
                ])
@@ -185,7 +174,13 @@ fc_values = fc[:, fc_idx[:, 0], fc_idx[:, 1]]
 
 # Genuine trimers: MC_{ir,jr} > FC_{i,j}
 trimers_leaves_idx = fc_reg_idx[mc_nplets_index > 0]
-fc_trimers_leaves_idx = np.array([np.unique(tri_idx.flatten()) for tri_idx in trimers_leaves_idx])
+fc_trimers_leaves_idx = np.array([np.unique(tri_idx.flatten()) 
+                                  for tri_idx in trimers_leaves_idx
+                                  if len(np.unique(tri_idx.flatten())) == 3
+                                  ])
+
+#fc_trimers_leaves_idx = fc_trimers_leaves_idx[~np.isnan(fc_trimers_leaves_idx).any(axis=1)]
+# Get the values of FC for the leaves of the trimers
 fc_leaves_values = fc[:, fc_trimers_leaves_idx[:, 0] - 1, fc_trimers_leaves_idx[:, 1] - 1]
 trimers_genuine_mc_root_fc_leaves = (mc_val[:, mc_nplets_index > 0] > fc_leaves_values)
 

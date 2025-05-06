@@ -28,7 +28,8 @@ import pickle
 
 from fun_loaddata import *
 from fun_dfcspeed import *
-from fun_metaconnectivity import compute_metaconnectivity, allegiance_matrix_analysis, intramodule_indices_mask, get_fc_mc_indices, get_mc_region_identities, compute_trimers_identity, build_trimer_mask, fun_allegiance_communities
+from fun_metaconnectivity import (compute_metaconnectivity, allegiance_matrix_analysis, intramodule_indices_mask, get_fc_mc_indices, get_mc_region_identities, compute_trimers_identity, build_trimer_mask, fun_allegiance_communities,
+                                    trimers_leaves_fc, trimers_root_fc)
 from fun_utils import split_groups_by_age
 # =============================================================================
 # This code compute 
@@ -130,7 +131,7 @@ mc = compute_metaconnectivity(ts,
                           window_size=window_size, 
                           lag=lag, 
                            n_jobs =PROCESSORS,
-                            save_path = path_results,
+                            save_path = path_results / 'mc/',
                           )
 
 #%% Modularity analysis
@@ -173,7 +174,8 @@ mc_allegiance[..., idx, idx] = np.nan # Zero the diagonal across the last two di
 # # Build basic indices
 fc_indx, mc_idx = get_fc_mc_indices(regions)
 mc_idx = mc_idx[mc_ref_allegiance_sort]
-mc_reg_idx, fc_reg_idx = get_mc_region_identities(fc_indx, mc_idx, mc_ref_allegiance_sort)
+fc_indx = fc_indx[mc_ref_allegiance_sort]
+mc_reg_idx, fc_reg_idx = get_mc_region_identities(fc_indx, mc_idx)
 mc_val = mc_allegiance[:, mc_idx[:, 0], mc_idx[:, 1]]
 
 # mc_mod_idx = mc_modules_mask[mc_idx[:, 0], mc_idx[:, 1]].astype(int)
@@ -197,36 +199,8 @@ print(f"Trimer processing time: {stop - start:.3f} seconds")
 #Threshold for the FC_{ij}
 # =============================================================================
 
-#Compute FC
-def ts2fc(timeseries, format_data = '2D', method='pearson'):
-    """
-    Calculate functional connectivity from time series data.
-    
-    Parameters:
-    timeseries (array): Time series data of shape (timepoints, nodes).
-    format_data (str): Output format, '2D' for full matrix or '1D' for lower-triangular vector.
-    
-    Returns:
-    fc (array): Functional connectivity matrix ('2D') or vector ('1D').
-    
-    Adapted from Lucas Arbabyazd et al 2020. Methods X, doi: 10.1016/j.neuroimage.2020.117156
-    """
-    # Calculate correlation coefficient matrix
-    if method=='pearson':
-        fc = fast_corrcoef(timeseries)
-
-        # fc = np.corrcoef(timeseries.T)
-    elif method=='plv':
-        fc = compute_plv_matrix_vectorized(timeseries.T)
-
-    # Optionally zero out the diagonal for '2D' format
-    if format_data=='2D':
-        np.fill_diagonal(fc,0)#fill the diagonal with 0
-        return fc
-    elif format_data=='1D':
-        # Return the lower-triangular part excluding the diagonal
-        return fc[np.tril_indices_from(fc, k=-1)]
 # animal=0
+#Compute Functional connectivity (FC)
 fc = np.array([ts2fc(ts[animal], format_data = '2D', method='pearson') 
                for animal in range(n_animals)
                ])
@@ -234,37 +208,28 @@ fc = np.array([ts2fc(ts[animal], format_data = '2D', method='pearson')
 fc_values = fc[:,fc_indx[:,0], fc_indx[:,1]]
 fc_values_median = np.median(fc_values,axis=0)
 
-trimers_leaves_idx = fc_reg_idx[mc_nplets_index>0]
-fc_trimers_leaves_bool = np.alltrue((fc_reg_idx* (mc_nplets_index>0)[:,None,None])>0,axis=(1,2))
+#Genuine trimers: MC_{ir,jr} > FC_{i,j}
+trimers_idx = fc_reg_idx[mc_nplets_index>0]
+fc_trimers_leaves_bool = np.all((fc_reg_idx* (mc_nplets_index>0)[:,None,None])>0,axis=(1,2))
 # mc_trimers_leaves_bool = np.alltrue( (mc_reg_idx.T * (mc_nplets_index>0)[:,None]),axis=(1))
-
-def trimers_leaves_fc(arr):
-    flat = arr.flatten()
-    unique, counts = np.unique(flat, return_counts=True)
-    non_repeated = unique[counts == 1]
-    repeated = unique[counts == 2]
-    return non_repeated
-def trimers_root_fc(arr):
-    flat = arr.flatten()
-    unique, counts = np.unique(flat, return_counts=True)
-    # non_repeated = unique[counts == 1]
-    repeated = unique[counts == 2]
-    return repeated
 
 # =============================================================================
 # For MC_{ir,jr} > FC_{i,j}
 # =============================================================================
-fc_trimers_leaves_idx = np.array([trimers_leaves_fc(tri_idx) for tri_idx in trimers_leaves_idx]) #trimers leaves region number
-fc_leaves_values = fc[:, fc_trimers_leaves_idx[:,0]-1, fc_trimers_leaves_idx[:,1]-1] # trimer leaves values
+fc_leaves_idx = np.array([trimers_leaves_fc(tri_idx) 
+                          for tri_idx in trimers_idx]) #trimers leaves region number
+fc_leaves_values = fc[:, fc_leaves_idx[:,0], fc_leaves_idx[:,1]] # trimer leaves values
+# fc_leaves_values = fc[:, fc_leaves_idx[:,0]-1, fc_leaves_idx[:,1]-1] # trimer leaves values
 trimers_genuine_mc_root_fc_leaves = ((mc_val[:,(mc_nplets_index>0) ]) > (fc_leaves_values)) # genuine trimers by MC_{ir,jr} > FC_{i,j}
 
 #%%
 # =============================================================================
 # For FC_{ir} > FC_{i,j} or FC_{jr} > FC_{i,j}
 # =============================================================================
-fc_trimers_root_idx = np.squeeze([trimers_root_fc(tri_idx) for tri_idx in trimers_leaves_idx])
-fc_root_values1 = fc[:, fc_trimers_root_idx-1, fc_trimers_leaves_idx[:,0]-1]
-fc_root_values2 = fc[:, fc_trimers_root_idx-1, fc_trimers_leaves_idx[:,1]-1]
+fc_trimers_root_idx = np.squeeze([trimers_root_fc(tri_idx) 
+                                  for tri_idx in trimers_idx])
+fc_root_values1 = fc[:, fc_trimers_root_idx, fc_leaves_idx[:,0]]
+fc_root_values2 = fc[:, fc_trimers_root_idx, fc_leaves_idx[:,1]]
 fc_root_min = np.minimum(np.abs(fc_root_values1), np.abs(fc_root_values2))
 
 trimers_genuine_fc_root_leaves = ((fc_root_min) > (fc_leaves_values))
@@ -273,51 +238,13 @@ trimers_genuine_fc_root_leaves = ((fc_root_min) > (fc_leaves_values))
 # =============================================================================
 # For MC_{ir,jr} > dFC_{i,j} and given time windows
 # =============================================================================
-def ts2dfc_stream(ts, windows_size, lag=None, format_data='2D', method='pearson'):
-    """
-    Calculate dynamic functional connectivity stream (dfc_stream) from time series data.
-
-    Parameters:
-    ts (array): Time series data of shape (t, n), where t is timepoints, n is regions.
-    windows_size (int): Window size to slide over the ts.
-    lag (int): Shift value for the window. Defaults to W if not specified.
-    format (str): Output format. '2D' for a (l, F) shape, '3D' for a (n, n, F) shape.
-
-    Returns:
-    dFCstream (array): Dynamic functional connectivity stream.
-    """
-
-    t_total, n = np.shape(ts)
-    #Not overlap
-    if lag is None:
-        lag = windows_size
-    
-    n_pairs               = n * (n-1)//2 #number of pairwise correlations
-    # Calculate the number of frames/windows
-    frames = (t_total - windows_size)//lag + 1
-    
-    if format_data=='2D':
-        dfc_stream = np.empty((n_pairs, frames))
-    elif format_data=='3D':
-        dfc_stream = np.empty((n, n, frames))
-        
-
-    for k in range(frames):
-        wstart = k * lag
-        wstop = wstart + windows_size
-        if format_data =='2D':
-            dfc_stream[:, k]    = ts2fc(ts[wstart:wstop, :], '1D', method=method)  # Assuming TS2FC returns a vector
-        elif format_data == '3D':
-            dfc_stream[:, :, k] = ts2fc(ts[wstart:wstop, :], '2D',method=method)  # Assuming TS2FC returns a matrix
-
-    return dfc_stream
 
 dfc_stream = np.array([
                 ts2dfc_stream(ts[animal], window_size, lag=lag, format_data='3D', method='pearson')
                 for animal in range(n_animals)
                 ])
 
-dfc_leaves_values = dfc_stream[:,fc_trimers_leaves_idx[:,0]-1, fc_trimers_leaves_idx[:,1]-1]
+dfc_leaves_values = dfc_stream[:,fc_leaves_idx[:,0], fc_leaves_idx[:,1]]
 dfc_leaves_values_mean = np.mean(dfc_leaves_values, axis=-1)
 # trimers_leaves_fc(dfc_stream)
 #%%

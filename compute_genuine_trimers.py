@@ -190,11 +190,10 @@ mc_val                 = data_analysis['mc_val_tril']
 
 # # Build basic indices
 fc_indx, mc_idx = get_fc_mc_indices(regions)
-
+mc_idx = mc_idx[mc_ref_allegiance_sort]
+fc_indx = fc_indx[mc_ref_allegiance_sort]
 # mc_idx = mc_idx[mc_ref_allegiance_sort]
-mc_reg_idx, fc_reg_idx = get_mc_region_identities(fc_indx, mc_idx, mc_ref_allegiance_sort)
-mc_reg_idx = mc_reg_idx
-fc_reg_idx = fc_reg_idx 
+mc_reg_idx, fc_reg_idx = get_mc_region_identities(fc_indx, mc_idx)
 
 # mc_mod_idx = mc_modules_mask[mc_idx[:, 0], mc_idx[:, 1]].astype(int)
 
@@ -215,35 +214,6 @@ mc_nplets_index = mc_nplets_mask[mc_idx[:, 0], mc_idx[:, 1]]
 #Threshold for the FC_{ij}
 # =============================================================================
 
-#Compute FC
-def ts2fc(timeseries, format_data = '2D', method='pearson'):
-    """
-    Calculate functional connectivity from time series data.
-    
-    Parameters:
-    timeseries (array): Time series data of shape (timepoints, nodes).
-    format_data (str): Output format, '2D' for full matrix or '1D' for lower-triangular vector.
-    
-    Returns:
-    fc (array): Functional connectivity matrix ('2D') or vector ('1D').
-    
-    Adapted from Lucas Arbabyazd et al 2020. Methods X, doi: 10.1016/j.neuroimage.2020.117156
-    """
-    # Calculate correlation coefficient matrix
-    if method=='pearson':
-        fc = fast_corrcoef(timeseries)
-
-        # fc = np.corrcoef(timeseries.T)
-    elif method=='plv':
-        fc = compute_plv_matrix_vectorized(timeseries.T)
-
-    # Optionally zero out the diagonal for '2D' format
-    if format_data=='2D':
-        np.fill_diagonal(fc,0)#fill the diagonal with 0
-        return fc
-    elif format_data=='1D':
-        # Return the lower-triangular part excluding the diagonal
-        return fc[np.tril_indices_from(fc, k=-1)]
 # animal=0
 fc = np.array([ts2fc(ts[animal], format_data = '2D', method='pearson') 
                 for animal in range(n_animals)
@@ -253,7 +223,7 @@ fc_values = fc[:,fc_indx[:,0], fc_indx[:,1]]
 fc_values_median = np.median(fc_values,axis=0)
 
 trimers_leaves_idx = fc_reg_idx[mc_nplets_index>0]
-fc_trimers_leaves_bool = np.alltrue((fc_reg_idx* (mc_nplets_index>0)[:,None,None])>0,axis=(1,2))
+fc_trimers_leaves_bool = np.all((fc_reg_idx* (mc_nplets_index>0)[:,None,None])>0,axis=(1,2))
 # mc_trimers_leaves_bool = np.alltrue( (mc_reg_idx.T * (mc_nplets_index>0)[:,None]),axis=(1))
 
 def trimers_leaves_fc(arr):
@@ -273,8 +243,9 @@ def trimers_root_fc(arr):
 # =============================================================================
 # For MC_{ir,jr} > FC_{i,j}
 # =============================================================================
-fc_trimers_leaves_idx = np.array([trimers_leaves_fc(tri_idx) for tri_idx in trimers_leaves_idx]) #trimers leaves region number
-fc_leaves_values = fc[:, fc_trimers_leaves_idx[:,0]-1, fc_trimers_leaves_idx[:,1]-1] # trimer leaves values
+fc_trimers_leaves_idx = np.array([trimers_leaves_fc(tri_idx) 
+                                  for tri_idx in trimers_leaves_idx]) #trimers leaves region number
+fc_leaves_values = fc[:, fc_trimers_leaves_idx[:,0], fc_trimers_leaves_idx[:,1]] # trimer leaves values
 trimers_genuine_mc_root_fc_leaves = ((mc_val[:,(mc_nplets_index>0) ]) > (fc_leaves_values)) # genuine trimers by MC_{ir,jr} > FC_{i,j}
 
 #%%
@@ -282,8 +253,9 @@ trimers_genuine_mc_root_fc_leaves = ((mc_val[:,(mc_nplets_index>0) ]) > (fc_leav
 # For FC_{ir} > FC_{i,j} or FC_{jr} > FC_{i,j}
 # =============================================================================
 fc_trimers_root_idx = np.squeeze([trimers_root_fc(tri_idx) for tri_idx in trimers_leaves_idx])
-fc_root_values1 = fc[:, fc_trimers_root_idx-1, fc_trimers_leaves_idx[:,0]-1]
-fc_root_values2 = fc[:, fc_trimers_root_idx-1, fc_trimers_leaves_idx[:,1]-1]
+fc_trimers_root_idx = np.squeeze([trimers_root_fc(tri_idx) for tri_idx in trimers_leaves_idx])
+fc_root_values1 = fc[:, fc_trimers_root_idx, fc_trimers_leaves_idx[:,0]]
+fc_root_values2 = fc[:, fc_trimers_root_idx, fc_trimers_leaves_idx[:,1]]
 fc_root_min = np.minimum(np.abs(fc_root_values1), np.abs(fc_root_values2))
 
 trimers_genuine_fc_root_leaves = ((fc_root_min) > (fc_leaves_values))
@@ -415,3 +387,5 @@ plt.ylabel(r"$MC_{(ij, (kl)^{N2 (N2-1)/2)})}$")
 plt.xlabel("Time")
 plt.tight_layout()
 plt.show()
+
+# %%
