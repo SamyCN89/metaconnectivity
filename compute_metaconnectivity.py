@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Sep 23 13:26:30 2024
-
+fun_allegiance_communities
 @author: samy
 """
 
