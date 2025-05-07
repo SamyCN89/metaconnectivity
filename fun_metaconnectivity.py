@@ -6,6 +6,7 @@ Created on Wed Mar 26 00:16:53 2025
 @author: samy
 """
 
+import joblib
 import numpy as np
 import matplotlib.pyplot as plt
 import brainconn as bct
@@ -169,27 +170,31 @@ def _build_agreement_matrix(communities):
     - The resulting agreement matrix is symmetric and has the same shape as the input
       community labels.
     """
-    n_nodes = communities[0].shape[0]
-    agreement = np.zeros((n_nodes, n_nodes), dtype=np.float64)
+    n_runs, n_nodes = communities.shape
+    agreement = np.zeros((n_nodes, n_nodes), dtype=np.uint16)
 
     for Ci in communities:
         # agreement += (Ci[:, None] == Ci[None, :])
         agreement += (Ci[:, None] == Ci)
 
-    return agreement
+    return agreement.astype(np.float32)
 
-def contingency_matrix_fun(n_runs, mc_data, gamma_range=10, gmin= 0.8, gmax=1.3, cache_path=None, ref_name='', n_jobs=-1):
+#%%
+
+def contingency_matrix_fun(n_runs, mc_data, gamma_range=10, gmin=0.8, gmax=1.3, cache_path=None, ref_name='', n_jobs=-1):
     """
     Compute or load a contingency matrix from community detection runs using joblib and vectorized agreement matrix.
     """
-
+    # Initialize parameters 
     n_nodes = mc_data.shape[0]
     gamma_mod = np.linspace(gmin, gmax, gamma_range)
     
+    # Setup cache directory 
     if cache_path:
         cache_dir = Path(cache_path)
-        cache_dir.mkdir(parents=True, exist_ok = True)
-        full_cache_path = cache_dir / f'contingency_matrix_ref={ref_name}_regions={n_nodes}_nruns={n_runs}_gamma_repetitions={gamma_range}'
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        safe_ref_name = ref_name.replace(" ", "_")
+        full_cache_path = cache_dir / f'contingency_matrix_ref={safe_ref_name}_regions={n_nodes}_nruns={n_runs}_gamma_repetitions={gamma_range}.pkl'
         if full_cache_path.exists():
             with full_cache_path.open('rb') as f:
                 print(f"[cache] Loading contingency matrix from {full_cache_path}")
@@ -197,30 +202,38 @@ def contingency_matrix_fun(n_runs, mc_data, gamma_range=10, gmin= 0.8, gmax=1.3,
     else:
         full_cache_path = None
 
-    contingency_matrix = np.zeros((n_nodes, n_nodes), dtype=np.float64)
-    gamma_qmod_val = np.zeros((gamma_range, n_runs), dtype=np.float64)
-    gamma_agreement_mat = np.zeros((gamma_range, n_nodes, n_nodes), dtype=np.float64)
+    # Prepare job list for all gamma/runs
+    job_list = [(gamma, run_id) 
+                for gamma in gamma_mod 
+                for run_id in range(n_runs)]
 
-    for idx, gamma in enumerate(tqdm(gamma_mod, desc="Gamma values")):
-        # Louvain with per-run progress bar
-        results = list(tqdm(
-            Parallel(n_jobs=n_jobs)(
-                delayed(_run_louvain)(mc_data, gamma) for _ in range(n_runs)
-            ),
-            total=n_runs,
-            desc=f"Gamma {gamma:.2f}"
-        ))
+    # Run all in parallel
+    all_results = Parallel(n_jobs=n_jobs)(
+        delayed(_run_louvain)(mc_data, gamma) for gamma, _ in tqdm(job_list, desc="Running Louvain jobs")
+    )
 
+    # Reshape into [gamma_index][runs]
+    results_by_gamma = [[] for _ in range(gamma_range)]
+    for (gamma, _), result in zip(job_list, all_results):
+        gamma_idx = np.argmin(np.abs(gamma_mod - gamma))  # match gamma to index
+        results_by_gamma[gamma_idx].append(result)
+
+    # Initialize containers
+    contingency_matrix = np.zeros((n_nodes, n_nodes), dtype=np.float32)
+    gamma_qmod_val = np.zeros((gamma_range, n_runs), dtype=np.float32)
+    gamma_agreement_mat = np.zeros((gamma_range, n_nodes, n_nodes), dtype=np.float32)
+
+    # Process per gamma
+    for idx, gamma in enumerate(tqdm(gamma_mod, desc="Processing gammas")):
+        results = results_by_gamma[idx]
         communities, modularities = zip(*results)
-        communities = np.array([np.array(c) for c in communities])
+        communities = np.array(communities, dtype=np.int32)
         gamma_qmod_val[idx] = modularities
 
-        # Efficient agreement accumulation
-        agreement =_build_agreement_matrix(communities)
+        # Build agreement matrix
+        agreement = _build_agreement_matrix(communities)
         gamma_agreement_mat[idx] = agreement
-
         contingency_matrix += agreement
-        
 
     contingency_matrix /= (n_runs * gamma_range)
 
@@ -232,15 +245,15 @@ def contingency_matrix_fun(n_runs, mc_data, gamma_range=10, gmin= 0.8, gmax=1.3,
 
     return contingency_matrix, gamma_qmod_val, gamma_agreement_mat
 
-
-def allegiance_matrix_analysis(mc_mean_template, n_runs=100, gamma_pt=10, cache_path=None, ref_name='', n_jobs=-1):
+#%%
+def allegiance_matrix_analysis(mc_data, n_runs=100, gamma_pt=10, cache_path=None, ref_name='', n_jobs=-1):
 
     """
     Wrapper to compute allegiance communities and sorting indices.
 
     Parameters
     ----------
-    mc_mean_template : ndarray
+    mc_data : ndarray
         Mean meta-connectivity matrix.
     n_runs : int
         Number of repetitions per gamma.
@@ -260,14 +273,14 @@ def allegiance_matrix_analysis(mc_mean_template, n_runs=100, gamma_pt=10, cache_
     # contingency_matrix, gamma_mean, gamma_std = contingency_matrix_fun_old(
     contingency_matrix, _, _ = contingency_matrix_fun(
         n_runs=n_runs, 
-        mc_data=mc_mean_template, 
+        mc_data=mc_data, 
         gamma_range=gamma_pt, 
         cache_path=cache_path, 
         ref_name=ref_name,
         n_jobs=n_jobs
     )
 
-    allegancy_communities, allegancy_modularity_q = bct.modularity.modularity_louvain_und(contingency_matrix, gamma=1.2)
+    allegancy_communities, allegancy_modularity_q = bct.modularity.modularity_louvain_und_sign(contingency_matrix, gamma=1.2)
     argsort_allegancy_communities = np.argsort(allegancy_communities)
 
     return allegancy_communities, argsort_allegancy_communities, allegancy_modularity_q, contingency_matrix
@@ -288,38 +301,150 @@ def fun_allegiance_communities(mc_data, n_runs=1000, gamma_pt=100, ref_name=None
         communities, sort_idx, contingency_matrix
     """
 
-    def process_single(mc_matrix):#, n_runs = 10, gamma_pt = 10, ref_name='', save_path=None, n_jobs=-1): # gamma number of points in the defined range
-        #allegiance index, argsort, Q value
-        communities, sort_idx, _, contingency = allegiance_matrix_analysis(mc_matrix, 
-                                                                           n_runs=n_runs, 
-                                                                           gamma_pt=gamma_pt, 
-                                                                           cache_path=save_path, 
-                                                                           ref_name=ref_name, 
-                                                                           n_jobs=n_jobs,
-                                                                           )
-        communities = communities[sort_idx]
+    # Load from the cache if the file already exists 
+
+    full_save_path = None 
+    if save_path and ref_name:
+        save_path = Path(save_path)
+        save_path.mkdir(parents=True, exist_ok=True)
+        safe_ref_name = ref_name.replace(" ", "_")
+        full_save_path = save_path / f"allegiance_{safe_ref_name}.joblib"
+
+        # Load from cache if it exists
+        if full_save_path.exists():
+            print(f"[cache] Loading allegiance communities from {full_save_path}")
+            return joblib.load(full_save_path)
+            # Uncomment the following lines if you want to use pickle instead of joblib
+            # with full_save_path.open('rb') as f:
+            #     return pickle.load(f)
+   
+    # Compute the contingency matrix
+    contingency_matrix, _, _ = contingency_matrix_fun(
+        n_runs=n_runs, 
+        mc_data=mc_data, 
+        gamma_range=gamma_pt, 
+        cache_path=save_path, 
+        ref_name=ref_name, 
+        n_jobs=n_jobs
+    )
+    # Compute the allegiance communities using the contingency matrix
+    communities, sort_idx, _, contingency = allegiance_matrix_analysis(
+        contingency_matrix,
+        n_runs=n_runs,
+        gamma_pt=gamma_pt,
+        cache_path=save_path,
+        ref_name=ref_name+'_recursive',
+        n_jobs=n_jobs
+    ) 
+
+    # Sort the communities 
+    communities = communities[sort_idx] 
+    # Save the results if save_path and ref_name are provided
+    if full_save_path:
+        print(f"[cache] Saving allegiance communities to {full_save_path}")
+        # Save using joblib
+        joblib.dump((communities, sort_idx, contingency), full_save_path)
+    return communities, sort_idx, contingency  # Return the communities, sorting indices, and contingency matrix
+
+
+def fun_allegiance_communities2(mc_data, n_runs=1000, gamma_pt=100, ref_name=None, save_path=None, n_jobs=-1):
+    """
+    Compute allegiance communities from a single or multiple meta-connectivity matrices.
+
+    Parameters:
+        mc_data: ndarray (2D or 3D)
+            Meta-connectivity matrix or matrices.
+        n_runs: int
+            Number of Louvain runs per gamma value.
+        gamma_pt: int
+            Number of gamma values to test.
+        ref_name: str
+            Reference name for saving results.
+        save_path: Path
+            Directory to save results.
+        n_jobs: int
+            Number of parallel jobs.
+
+    Returns:
+        communities: ndarray
+            Community labels for nodes.
+        sort_idx: ndarray
+            Sorting indices for nodes based on communities.
+        contingency_matrix: ndarray
+            Contingency matrix from Louvain runs.
+    """
+    def process_single(mc_matrix):
+        communities, sort_idx, _, contingency = allegiance_matrix_analysis(
+            mc_matrix, n_runs=n_runs, gamma_pt=gamma_pt, cache_path=save_path, ref_name=ref_name, n_jobs=n_jobs
+        )
         return communities, sort_idx, contingency
-        
 
     if mc_data.ndim == 3:
-        allegiances = []
-        for i in range(mc_data.shape[0]):
-            _, allegiance, _ = process_single(mc_data[i])
-            allegiances.append(allegiance)
-        mean_allegiance = np.mean(allegiances, axis=0)
-        communities, sort_idx, contingency = process_single(mean_allegiance)
+        # Process multiple MC matrices
+        communities_list, sort_idx_list, contingency_list = zip(
+            *(process_single(mc_data[i]) for i in range(mc_data.shape[0]))
+        )
+        communities = np.mean(communities_list, axis=0)
+        sort_idx = np.argsort(communities)
+        contingency_matrix = np.mean(contingency_list, axis=0)
     elif mc_data.ndim == 2:
-        communities, sort_idx, contingency = process_single(mc_data)
+        # Process a single MC matrix
+        communities, sort_idx, contingency_matrix = process_single(mc_data)
     else:
         raise ValueError("Input mc_data must be 2D or 3D.")
 
+    communities = communities[sort_idx]
+    # Save results if save_path and ref_name are provided
     if save_path and ref_name:
         np.savez_compressed(
             Path(save_path) / f"allegiance_{ref_name}.npz",
             communities=communities,
             sort_idx=sort_idx,
-            contingency=contingency
+            contingency=contingency_matrix
         )
+
+    return communities, sort_idx, contingency_matrix
+#I need an handler of the data if is one mc data instance or there is mutiple of them
+# def allegiance_wrapper(mc_data, n_runs=1000, gamma_pt=100, ref_name=None, save_path=None, n_jobs=-1):
+#     """
+#     Compute allegiance communities from one or more MC matrices.
+#     """
+#     mc_data = mc_data[None, ...] if mc_data.ndim == 2 else mc_data  # Standardize to 3D
+#     # Compute allegiance communities
+#     allegiances = [fun_allegiance_communities(mc) for mc in mc_data]
+#     mean_allegiance = np.mean(allegiances, axis=0)
+#     communities, sort_idx, contingency = fun_allegiance_communities(mean_allegiance)
+#     communities = communities[sort_idx]
+#     # Save results if save_path and ref_name are provided
+#     if save_path and ref_name:
+#         np.savez_compressed(
+#             Path(save_path) / f"allegiance_{ref_name}.npz",
+#             communities=communities,
+#             sort_idx=sort_idx,
+#             contingency=contingency
+#         )
+#     return communities, sort_idx, contingency
+#%%
+def allegiance_wrapper_(mc_data, n_runs=1000, gamma_pt=100, ref_name=None, save_path=None, n_jobs=-1):
+    """
+    Compute allegiance communities from one or more MC matrices.
+    """
+    mc_data = mc_data[None, ...] if mc_data.ndim == 2 else mc_data  # Standardize to 3D
+
+    def process_single(mc_matrix):
+        communities, sort_idx, _, contingency = allegiance_matrix_analysis(
+            mc_matrix, n_runs=n_runs, gamma_pt=gamma_pt, cache_path=save_path,
+            ref_name=ref_name, n_jobs=n_jobs)
+        return communities, sort_idx, contingency
+    # Compute allegiance communities for each matrix
+    allegiances = [process_single(mc) for mc in mc_data]  # Updated to call process_single
+
+    communities = np.mean([al[0] for al in allegiances], axis=0)
+    sort_idx = np.argsort(communities)
+    contingency = np.mean([al[2] for al in allegiances], axis=0)
+    communities = communities[sort_idx]
+    # Save results if save_path and ref_name are provided
+
 
     return communities, sort_idx, contingency
 
