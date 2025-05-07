@@ -11,7 +11,7 @@ import os
 import pandas as pd
 import pickle
 from pathlib import Path
-from extract_hash_numbers import extract_hash_numbers
+from fun_loaddata import extract_hash_numbers
 from fun_utils import filename_sort_mat, load_matdata, classify_phenotypes, make_combination_masks, make_masks
 import matplotlib.pyplot as plt
 import time
