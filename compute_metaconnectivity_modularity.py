@@ -108,8 +108,8 @@ print(f'Metaconnectivity time {stop-start}')
 
 # # ========================Communities ==========================================
 # #Set reference
-label_ref = label_variables[0][0] #The label of the reference matrix
-ind_ref = mask_groups[0][0] # the mask of the reference matrix
+label_ref = label_variables[1][0] #The label of the reference matrix
+ind_ref = mask_groups[1][0] # the mask of the reference matrix
 mc_ref = np.mean(mc[ind_ref],axis=0)
 #%% Compute allegiance
 mc_ref_allegiance_communities, mc_ref_allegiance_sort, contingency_matrix = fun_allegiance_communities(mc_ref, 
