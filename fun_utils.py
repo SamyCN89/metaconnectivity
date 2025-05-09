@@ -113,6 +113,8 @@ def load_timeseries_data(path_to_npz: Path) -> dict:
         'is_2month_old': data['is_2month_old']
     }
 
+# functions to load grouping data 
+
 def load_grouping_data(path_to_pkl: Path):
     with open(path_to_pkl, "rb") as f:
         mask_groups, label_variables = pickle.load(f)

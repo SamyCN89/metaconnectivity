@@ -19,5 +19,6 @@
   "jupyter.interactiveWindow.creationMode": "perFile",
   "jupyter.interactiveWindow.textEditor.executeSelection": true,
   "github.copilot.nextEditSuggestions.enabled": true,
-  "workbench.editor.titleScrollbarSizing": "large"
+  "workbench.editor.titleScrollbarSizing": "large",
+  "python.pythonPath": "/home/samy/anaconda3/envs/funcog/bin/python"
 }

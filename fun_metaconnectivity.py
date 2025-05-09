@@ -537,11 +537,59 @@ def get_mc_region_identities(fc_idx, mc_idx):
 
 #%%
 # =============================================================================
-# Trimers
+# Identify Trimers functions
 # =============================================================================
 # Compute trimer-based mask and index for meta-connectivity matrix
 
-def compute_trimers_identity(regions):
+def compute_trimers_identity(regions, allegiance_sort=None):
+    """
+    Compute the indices of trimers in the meta-connectivity matrix.
+    A trimer is defined as a set of three unique nodes among the four defining a meta-connection.
+    The function returns the indices of the trimers, their region identities, and the apex node.
+
+    Parameters
+    ----------
+    regions : int
+        The number of regions in the functional connectivity matrix.
+
+    Returns
+    -------
+    trimer_idx : (2, M) ndarray
+        The indices of the trimers in the meta-connectivity matrix.
+    trimer_reg_id : (4, M) ndarray
+        The region identities of the trimers.
+    trimer_apex : (M,) ndarray
+        The apex node of each trimer.
+    """
+    # Get FC and MC indices
+    fc_idx, mc_idx = get_fc_mc_indices(regions)
+    
+    # Get the indices of the regions in the functional connectivity matrix
+    if allegiance_sort is not None:
+        # Sort the indices based on the allegiance sort order
+        mc_idx = mc_idx[allegiance_sort]
+        fc_idx = fc_idx[allegiance_sort]
+    
+    mc_reg_idx, _ = get_mc_region_identities(fc_idx, mc_idx)
+
+    # Identify trimers: rows with exactly 3 unique nodes
+    unique_counts = np.apply_along_axis(lambda x: len(set(x)), axis=0, arr=mc_reg_idx)
+    trimer_mask = unique_counts == 3
+
+    # Extract trimer indices and region identities
+    trimer_idx = mc_idx[trimer_mask].T
+    trimer_reg_id = mc_reg_idx[:, trimer_mask]
+
+    # Find apex node: the node that appears twice
+    trimer_apex = np.full(trimer_reg_id.shape[1], np.nan)
+    for i in range(trimer_reg_id.shape[1]):
+        vals, counts = np.unique(trimer_reg_id[:, i], return_counts=True)
+        repeated = vals[counts > 1]
+        if repeated.size > 0:
+            trimer_apex[i] = repeated[0]
+    return trimer_idx, trimer_reg_id, trimer_apex
+
+def compute_trimers_identity_old(regions):
     """
     Compute the indices of trimers in the meta-connectivity matrix.
     A trimer is defined as a set of three unique nodes among the four defining a meta-connection.
@@ -583,46 +631,7 @@ def compute_trimers_identity(regions):
 
     return trimer_idx, trimer_reg_id, trimer_apex
 
-# def compute_trimers_identity_old(regions):
-#     """
-#     Compute the indices of trimers in the meta-connectivity matrix.
-#     A trimer is defined as a set of three unique nodes among the four defining a meta-connection.
-#     The function returns the indices of the trimers, their region identities, and the apex node.
-#     Parameters:
-#     ----------
-#     regions : int
-#         The number of regions in the functional connectivity matrix.
-#     Returns:
-#     -------
-#     trimer_idx : (2, M) ndarray
-#         The indices of the trimers in the meta-connectivity matrix.
-#     trimer_reg_id : (4, M) ndarray
-#         The region identities of the trimers.
-#     trimer_apex : (M,) ndarray
-#         The apex node of each trimer.
-#     """
 
-#     fc_idx, mc_idx = get_fc_mc_indices(regions)
-
-#     mc_reg_idx, _ = get_mc_region_identities(fc_idx, mc_idx)
-#     mc_reg_idx = mc_reg_idx.T#, mc_ref_allegiance_sort)
-
-#     # Find trimers: exactly 3 unique nodes among the 4 defining a meta-connection
-#     unique_counts = np.array([len(np.unique(row)) for row in mc_reg_idx])
-#     trimer_mask = unique_counts == 3
-#     trimer_idx = mc_idx[trimer_mask].T
-#     trimer_reg_id = mc_reg_idx[trimer_mask]
-
-#     # Find apex node (node that appears twice)
-#     trimer_apex = np.array([
-#         np.unique(row, return_counts=True)[0][
-#             np.unique(row, return_counts=True)[1] > 1
-#         ][0] if len(np.unique(row, return_counts=True)[0][
-#             np.unique(row, return_counts=True)[1] > 1]) > 0 else np.nan
-#         for row in trimer_reg_id
-#     ])
-
-#     return trimer_idx, trimer_reg_id, trimer_apex
 
 def build_trimer_mask(trimer_idx, trimer_apex, n_fc_edges):
     mask = np.zeros((n_fc_edges, n_fc_edges))
