@@ -133,15 +133,13 @@ intramodules_idx, intramodule_indices, mc_modules_mask = intramodule_indices_mas
 mc_modules_mask = mc_modules_mask[mc_ref_allegiance_sort][:, mc_ref_allegiance_sort]
 
 # Build basic indices
-fc_indx, mc_idx = get_fc_mc_indices(regions)
+fc_idx, mc_idx = get_fc_mc_indices(regions)
 
 # Get the indices of the regions in the functional connectivity matrix
-mc_idx = mc_idx[mc_ref_allegiance_sort]
-fc_indx = fc_indx[mc_ref_allegiance_sort]
+mc_reg_idx, fc_reg_idx = get_mc_region_identities(fc_idx, mc_idx)#, mc_ref_allegiance_sort)
 
-mc_reg_idx, fc_reg_idx = get_mc_region_identities(fc_indx, mc_idx)#, mc_ref_allegiance_sort)
+# Get the indices of the regions in the metaconnectivity matrix
 mc_val = mc_allegiance[:, mc_idx[:, 0], mc_idx[:, 1]]
-
 mc_mod_idx = mc_modules_mask[mc_idx[:, 0], mc_idx[:, 1]].astype(int)
 #%% Save modularity
 save_filename = (
@@ -160,7 +158,7 @@ np.savez_compressed(
     mc_val_tril                     = mc_val,
 
     mc_idx_tril                     = mc_idx,
-    fc_idx_tril                     = fc_indx,
+    fc_idx_tril                     = fc_idx,
     mc_modules_mask                 = mc_modules_mask,
 
     fc_reg_idx                      = fc_reg_idx,

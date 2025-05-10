@@ -17,6 +17,7 @@ from fun_loaddata import *
 from fun_dfcspeed import *
 
 from fun_metaconnectivity import (
+    compute_mc_nplets_mask_and_index,
     compute_metaconnectivity,
     intramodule_indices_mask,
     get_fc_mc_indices,
@@ -26,6 +27,7 @@ from fun_metaconnectivity import (
     build_trimer_mask,
     trimers_leaves_fc,
     trimers_root_fc,
+    compute_mc_nplets_mask_and_index,
 )
 
 from fun_utils import (
@@ -87,12 +89,14 @@ time_window_min, time_window_max, time_window_step = window_parameter
 time_window_range = np.arange(time_window_min, time_window_max + 1, time_window_step)
 
 
-# %%Reference metaconnectivity fro allegiance matrix
+# %%Reference metaconnectivity for allegiance matrix
 # # ========================Set Reference parameters ==========================================
 
 label_ref = label_variables[1][0]  # The label of the reference matrix
 ind_ref = mask_groups[1][0]  # the mask of the reference matrix
-# %% Save modularity
+# %% 
+# =========================Load metaconnectivity modularity =========================
+# Load the metaconnectivity modularity dataset
 save_filename = paths[
     "mc_mod"
 ] / f"mc_allegiance_ref(runs={label_ref}_gammaval={n_runs_allegiance})={gamma_pt_allegiance}_lag={lag}_windowsize={window_size}_animals={n_animals}_regions={regions}.npz".replace(
@@ -113,18 +117,24 @@ fc_reg_idx = data_analysis["fc_reg_idx"]
 # %%
 # ========================Trimers==========================================
 # Compute trimers
-trimer_index, trimer_reg_id, trimer_apex = compute_trimers_identity(regions, allegiance_sort=mc_ref_allegiance_sort)
+# trimer_index, trimer_reg_id, trimer_apex = compute_trimers_identity(regions, allegiance_sort=mc_ref_allegiance_sort)
 
-# Build trimer mask
-n_fc_edges = int(regions * (regions - 1) / 2)
-mc_nplets_mask = build_trimer_mask(trimer_index, trimer_apex, n_fc_edges)
-# mc_nplets_mask = mc_nplets_mask[mc_ref_allegiance_sort][:, mc_ref_allegiance_sort]
+# # Build trimer mask
+# n_fc_edges = int(regions * (regions - 1) / 2)
+# mc_nplets_mask = build_trimer_mask(trimer_index, trimer_apex, n_fc_edges)
 # mc_nplets_index = mc_nplets_mask[mc_idx[:, 0], mc_idx[:, 1]]
+# tril_i, tril_j = np.tril_indices(n_fc_edges, k=-1)
+# mc_nplets_index3 = mc_nplets_mask[tril_i, tril_j]
 
 # print(f"Trimer processing time: {stop - start:.3f} seconds")
-# %%
+# %% Compute the mask and index
+# ========================Trimers==========================================
+# Compute the mask and index
+mc_nplets_mask2, mc_nplets_index2 = compute_mc_nplets_mask_and_index(
+    regions, allegiance_sort=mc_ref_allegiance_sort
+)
+#%%
 # # ===============================================
-# ==============================
 # # Genuine trimers MC_{ir,jr}>FC_{ij}
 # #Threshold for the FC_{ij}
 # # =============================================================================

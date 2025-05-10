@@ -189,11 +189,11 @@ mc_val                 = data_analysis['mc_val_tril']
 # mc_modules_mask = mc_modules_mask[mc_ref_allegiance_sort][:, mc_ref_allegiance_sort]
 
 # # Build basic indices
-fc_indx, mc_idx = get_fc_mc_indices(regions)
+fc_idx, mc_idx = get_fc_mc_indices(regions)
 mc_idx = mc_idx[mc_ref_allegiance_sort]
-fc_indx = fc_indx[mc_ref_allegiance_sort]
+fc_idx = fc_idx[mc_ref_allegiance_sort]
 # mc_idx = mc_idx[mc_ref_allegiance_sort]
-mc_reg_idx, fc_reg_idx = get_mc_region_identities(fc_indx, mc_idx)
+mc_reg_idx, fc_reg_idx = get_mc_region_identities(fc_idx, mc_idx)
 
 # mc_mod_idx = mc_modules_mask[mc_idx[:, 0], mc_idx[:, 1]].astype(int)
 
@@ -219,7 +219,7 @@ fc = np.array([ts2fc(ts[animal], format_data = '2D', method='pearson')
                 for animal in range(n_animals)
                 ])
 
-fc_values = fc[:,fc_indx[:,0], fc_indx[:,1]]
+fc_values = fc[:,fc_idx[:,0], fc_idx[:,1]]
 fc_values_median = np.median(fc_values,axis=0)
 
 trimers_leaves_idx = fc_reg_idx[mc_nplets_index>0]
@@ -367,7 +367,7 @@ plt.tight_layout()
 # plt.plot(np.sum(trimers_genuine_mc_root_fc_leaves, axis=0),'.')
 # plt.subplot(313)
 # plt.plot(np.sum(trimers_genuine_mc_root_dfc_leaves, axis=0),'.')
-# plt.imshow(fc[:,fc_indx[:,0],fc_indx[:,1]].T,
+# plt.imshow(fc[:,fc_idx[:,0],fc_idx[:,1]].T,
 #            interpolation='none',
 #            aspect='auto', 
 #            cmap = 'coolwarm',

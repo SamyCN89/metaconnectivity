@@ -484,7 +484,7 @@ def intramodule_indices_mask(allegancy_communities):
 # MC FC - connectivity indices 
 # =============================================================================
 # The following functions are used to compute the indices of the functional connectivity (FC) and meta-connectivity (MC) matrices.
-def get_fc_mc_indices(regions):
+def get_fc_mc_indices(regions, allegiance_sort=None):
     """
     Get the indices of the functional connectivity (FC) and meta-connectivity (MC) matrices
     for a given number of regions.
@@ -494,6 +494,9 @@ def get_fc_mc_indices(regions):
     ----------     
     regions : int
         The number of regions in the functional connectivity matrix.
+    allegiance_sort : array-like, optional
+        An array of indices to sort the functional connectivity matrix.
+
     Returns:
     -------
     fc_idx : (N,2) ndarray
@@ -508,6 +511,9 @@ def get_fc_mc_indices(regions):
     # The fc_idx and mc_idx arrays are used to index the functional connectivity and
     # meta-connectivity matrices, respectively.    
     fc_idx = np.array(np.tril_indices(regions, k=-1)).T
+    #if sort allegiance provided, order the indices accordingly
+    if allegiance_sort is not None:
+        fc_idx = fc_idx[allegiance_sort]
     mc_idx = np.array(np.tril_indices(fc_idx.shape[0], k=-1)).T
     return fc_idx, mc_idx
 
@@ -567,7 +573,6 @@ def compute_trimers_identity(regions, allegiance_sort=None):
     # Get the indices of the regions in the functional connectivity matrix
     if allegiance_sort is not None:
         # Sort the indices based on the allegiance sort order
-        mc_idx = mc_idx[allegiance_sort]
         fc_idx = fc_idx[allegiance_sort]
     
     mc_reg_idx, _ = get_mc_region_identities(fc_idx, mc_idx)
@@ -589,48 +594,6 @@ def compute_trimers_identity(regions, allegiance_sort=None):
             trimer_apex[i] = repeated[0]
     return trimer_idx, trimer_reg_id, trimer_apex
 
-def compute_trimers_identity_old(regions):
-    """
-    Compute the indices of trimers in the meta-connectivity matrix.
-    A trimer is defined as a set of three unique nodes among the four defining a meta-connection.
-    The function returns the indices of the trimers, their region identities, and the apex node.
-
-    Parameters
-    ----------
-    regions : int
-        The number of regions in the functional connectivity matrix.
-
-    Returns
-    -------
-    trimer_idx : (2, M) ndarray
-        The indices of the trimers in the meta-connectivity matrix.
-    trimer_reg_id : (4, M) ndarray
-        The region identities of the trimers.
-    trimer_apex : (M,) ndarray
-        The apex node of each trimer.
-    """
-    # Get FC and MC indices
-    fc_idx, mc_idx = get_fc_mc_indices(regions)
-    mc_reg_idx, _ = get_mc_region_identities(fc_idx, mc_idx)
-
-    # Identify trimers: rows with exactly 3 unique nodes
-    unique_counts = np.apply_along_axis(lambda row: len(np.unique(row)), axis=0, arr=mc_reg_idx)
-    trimer_mask = unique_counts == 3
-
-    # Extract trimer indices and region identities
-    trimer_idx = mc_idx[trimer_mask].T
-    trimer_reg_id = mc_reg_idx[:, trimer_mask]
-
-    # Find apex nodes (nodes appearing twice in a trimer)
-    def find_apex(row):
-        unique_nodes, counts = np.unique(row, return_counts=True)
-        apex_candidates = unique_nodes[counts > 1]
-        return apex_candidates[0] if len(apex_candidates) > 0 else np.nan
-
-    trimer_apex = np.apply_along_axis(find_apex, axis=0, arr=trimer_reg_id)
-
-    return trimer_idx, trimer_reg_id, trimer_apex
-
 
 
 def build_trimer_mask(trimer_idx, trimer_apex, n_fc_edges):
@@ -642,7 +605,110 @@ def build_trimer_mask(trimer_idx, trimer_apex, n_fc_edges):
         mask[a, b] = mask[b, a] = apex_val
     return mask
 
+
 #%%
+def compute_mc_nplets_mask_and_index(regions, allegiance_sort=None):
+    """
+    Computes a mask and index array identifying trimers in the meta-connectivity matrix.
+
+    Parameters
+    ----------
+    regions : int
+        Number of regions in the functional connectivity matrix.
+    mc_idx : ndarray
+        Meta-connectivity indices (N, 2).
+    allegiance_sort : ndarray or None
+        Optional sort order for mc_idx/fc_idx (typically from allegiance sorting).
+
+    Returns
+    -------
+    mc_nplets_mask : ndarray
+        Symmetric matrix with apex node identifiers at trimer positions.
+    mc_nplets_index : ndarray
+        Array of apex node identifiers for each MC edge, or np.nan if not a trimer.
+    """
+    #Get indices of the functional connectivity (FC) and meta-connectivity (MC) matrices
+    fc_idx, mc_idx = get_fc_mc_indices(regions)
+
+    #Apply allegiance sorting if provided
+    if allegiance_sort is not None:
+        fc_idx = fc_idx[allegiance_sort]
+
+    #Get the region identities for the functional connectivity (FC) and meta-connectivity (MC) matrices
+    mc_reg_idx, _ = get_mc_region_identities(fc_idx, mc_idx)
+
+    #Identify trimers: rows with exactly 3 unique nodes
+    unique_counts = np.apply_along_axis(lambda x: len(set(x)), axis=0, arr=mc_reg_idx)
+    trimer_mask = unique_counts == 3
+
+    trimer_idx = mc_idx[trimer_mask].T
+    trimer_reg_id = mc_reg_idx[:, trimer_mask]
+
+    #Find root node: the node that appears twice
+    trimer_apex = np.full(trimer_reg_id.shape[1], np.nan)
+    for i in range(trimer_reg_id.shape[1]):
+        vals, counts = np.unique(trimer_reg_id[:, i], return_counts=True)
+        repeated = vals[counts > 1]
+        if repeated.size > 0:
+            trimer_apex[i] = repeated[0]
+
+    #Build the mask and index array
+    n_fc_edges = int(regions * (regions - 1) / 2)
+    mask = np.zeros((n_fc_edges, n_fc_edges))
+    np.fill_diagonal(mask, np.nan)
+    for i in range(trimer_idx.shape[1]):
+        a, b = trimer_idx[0, i], trimer_idx[1, i]
+        apex_val = trimer_apex[i] + 1  # optional +1 offset
+        mask[a, b] = mask[b, a] = apex_val
+
+    # Get the indices of the lower triangular part of the mask
+    mc_nplets_index = mask[mc_idx[:,0], mc_idx[:,1]]
+    
+    return mask, mc_nplets_index
+
+#%%
+# def compute_trimers_identity_old(regions):
+#     """
+#     Compute the indices of trimers in the meta-connectivity matrix.
+#     A trimer is defined as a set of three unique nodes among the four defining a meta-connection.
+#     The function returns the indices of the trimers, their region identities, and the apex node.
+
+#     Parameters
+#     ----------
+#     regions : int
+#         The number of regions in the functional connectivity matrix.
+
+#     Returns
+#     -------
+#     trimer_idx : (2, M) ndarray
+#         The indices of the trimers in the meta-connectivity matrix.
+#     trimer_reg_id : (4, M) ndarray
+#         The region identities of the trimers.
+#     trimer_apex : (M,) ndarray
+#         The apex node of each trimer.
+#     """
+#     # Get FC and MC indices
+#     fc_idx, mc_idx = get_fc_mc_indices(regions)
+#     mc_reg_idx, _ = get_mc_region_identities(fc_idx, mc_idx)
+
+#     # Identify trimers: rows with exactly 3 unique nodes
+#     unique_counts = np.apply_along_axis(lambda row: len(np.unique(row)), axis=0, arr=mc_reg_idx)
+#     trimer_mask = unique_counts == 3
+
+#     # Extract trimer indices and region identities
+#     trimer_idx = mc_idx[trimer_mask].T
+#     trimer_reg_id = mc_reg_idx[:, trimer_mask]
+
+#     # Find apex nodes (nodes appearing twice in a trimer)
+#     def find_apex(row):
+#         unique_nodes, counts = np.unique(row, return_counts=True)
+#         apex_candidates = unique_nodes[counts > 1]
+#         return apex_candidates[0] if len(apex_candidates) > 0 else np.nan
+
+#     trimer_apex = np.apply_along_axis(find_apex, axis=0, arr=trimer_reg_id)
+
+#     return trimer_idx, trimer_reg_id, trimer_apex
+
 def trimers_by_apex(trimer_values, trimer_reg_apex):
     """
     Splits trimer MC values by apex region and group.
