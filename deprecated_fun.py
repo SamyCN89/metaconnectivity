@@ -174,7 +174,7 @@ def fun_allegiance_communities_old(mc_data, n_runs=1000, gamma_pt=100, ref_name=
 #     fc_idx, mc_idx = get_fc_mc_indices(regions)
 
 #     mc_reg_idx, _ = get_mc_region_identities(fc_idx, mc_idx)
-#     mc_reg_idx = mc_reg_idx.T#, mc_ref_allegiance_sort)
+#     mc_reg_idx = mc_reg_idx.T#, sort_allegiance)
 
 #     # Find trimers: exactly 3 unique nodes among the 4 defining a meta-connection
 #     unique_counts = np.array([len(np.unique(row)) for row in mc_reg_idx])

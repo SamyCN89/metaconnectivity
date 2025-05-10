@@ -163,7 +163,7 @@ mc_idx = data_mc_mod['mc_idx_tril']
 
 #Community values
 mc_ref_allegiance_communities           = data_mc_mod['mc_ref_allegiance_communities']
-mc_ref_allegiance_sort   = data_mc_mod['mc_ref_allegiance_sort']
+sort_allegiance   = data_mc_mod['sort_allegiance']
 
 #Indices MC, FC, regions
 fc_reg_idx             = data_mc_mod['fc_reg_idx']

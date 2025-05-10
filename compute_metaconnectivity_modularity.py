@@ -112,7 +112,7 @@ label_ref = label_variables[1][0] #The label of the reference matrix
 ind_ref = mask_groups[1][0] # the mask of the reference matrix
 mc_ref = np.mean(mc[ind_ref],axis=0)
 #%% Compute allegiance
-mc_ref_allegiance_communities, mc_ref_allegiance_sort, contingency_matrix = fun_allegiance_communities(mc_ref, 
+mc_ref_allegiance_communities, sort_allegiance, contingency_matrix = fun_allegiance_communities(mc_ref, 
                                                                                                        n_runs = n_runs_allegiance, 
                                                                                                        gamma_pt = gamma_pt_allegiance, 
                                                                                                        save_path=paths['allegiance'],
@@ -121,7 +121,7 @@ mc_ref_allegiance_communities, mc_ref_allegiance_sort, contingency_matrix = fun_
                                                                                                        )
 
 #sorted initial mc by communities
-mc_allegiance = mc[:, mc_ref_allegiance_sort][:, :, mc_ref_allegiance_sort]
+mc_allegiance = mc[:, sort_allegiance][:, :, sort_allegiance]
 #Optional -fill with 0 the diagonal
 idx = np.arange(int(regions*(regions-1)/2))
 mc_allegiance[..., idx, idx] = np.nan # Zero the diagonal across the last two dimensions
@@ -130,13 +130,13 @@ mc_allegiance[..., idx, idx] = np.nan # Zero the diagonal across the last two di
 # ========================Modules==========================================
 
 intramodules_idx, intramodule_indices, mc_modules_mask = intramodule_indices_mask(mc_ref_allegiance_communities)
-mc_modules_mask = mc_modules_mask[mc_ref_allegiance_sort][:, mc_ref_allegiance_sort]
+mc_modules_mask = mc_modules_mask[sort_allegiance][:, sort_allegiance]
 
 # Build basic indices
-fc_idx, mc_idx = get_fc_mc_indices(regions)
+fc_idx, mc_idx = get_fc_mc_indices(regions, allegiance_sort=sort_allegiance)
 
 # Get the indices of the regions in the functional connectivity matrix
-mc_reg_idx, fc_reg_idx = get_mc_region_identities(fc_idx, mc_idx)#, mc_ref_allegiance_sort)
+mc_reg_idx, fc_reg_idx = get_mc_region_identities(fc_idx, mc_idx)#, sort_allegiance)
 
 # Get the indices of the regions in the metaconnectivity matrix
 mc_val = mc_allegiance[:, mc_idx[:, 0], mc_idx[:, 1]]
@@ -154,7 +154,7 @@ np.savez_compressed(
     save_filename,
     mc                              = mc_allegiance,
     mc_ref_allegiance_communities   = mc_ref_allegiance_communities,
-    mc_ref_allegiance_sort          = mc_ref_allegiance_sort,
+    sort_allegiance          = sort_allegiance,
     mc_val_tril                     = mc_val,
 
     mc_idx_tril                     = mc_idx,
@@ -167,3 +167,5 @@ np.savez_compressed(
 )
 
 
+
+# %%
