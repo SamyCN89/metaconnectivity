@@ -15,14 +15,7 @@ from pathlib import Path
 from fun_loaddata import *
 from fun_dfcspeed import *
 
-from fun_metaconnectivity import (compute_metaconnectivity, 
-                                  intramodule_indices_mask, 
-                                  get_fc_mc_indices, 
-                                  get_mc_region_identities, 
-                                  fun_allegiance_communities,
-                                  compute_trimers_identity,
-                                    build_trimer_mask,
-                                  )
+from shared_code.fun_metaconnectivity import *
 
 from fun_utils import (set_figure_params, 
                        get_paths, 
@@ -70,12 +63,12 @@ PROCESSORS =-1
 
 lag=1
 tau=5
-window_size = 7
+window_size = 100
 window_parameter = (5,100,1)
 
 #Parameters allegiance analysis
 n_runs_allegiance = 1000
-gamma_pt_allegiance = 100
+gamma_pt_allegiance = 9
 
 tau_array       = np.append(np.arange(0,tau), tau ) 
 lentau          = len(tau_array)
