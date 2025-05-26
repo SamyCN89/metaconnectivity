@@ -83,15 +83,15 @@ else:
 
 folders = {'2mois': 'TC_2months', '4mois': 'TC_4months'}
 # folders = {'2mois': 'Lot3_2mois', '4mois': 'Lot3_4mois'}
-# path_timeseries = root + 'Timecourses_updated/' # Old data
-# path_cog_data   = os.path.join(path_timeseries, 'Behaviour_exclusions_ROIs_female.xlsx')
+# paths['timeseries'] = root + 'Timecourses_updated/' # Old data
+# paths['cog_data']   = os.path.join(paths['timeseries'], 'Behaviour_exclusions_ROIs_female.xlsx')
 
 #Path results
 path_results = root / 'results'
 path_mc_mod = path_results / 'mc_mod/'
-path_sorted = path_results / 'sorted_data/'
-path_timeseries = path_results / 'Timecourses_updated_03052024'
-path_cog_data   = path_timeseries / 'ROIs.xlsx'
+paths['sorted'] = path_results / 'sorted_data/'
+paths['timeseries'] = path_results / 'Timecourses_updated_03052024'
+paths['cog_data']   = paths['timeseries'] / 'ROIs.xlsx'
 
 #Path figures
 path_figures = root / 'fig'
@@ -115,10 +115,10 @@ def get_paths(external_disk=True):
 #%%
 
 #Specific hash/filename
-grouping_per_sex_hash = path_sorted / "grouping_data_per_sex(gen_phen).pkl"
-grouping_hash = path_sorted / "grouping_data_oip.pkl"
-cog_data_filtered_filename = path_sorted / 'cog_data_sorted_2m4m.csv'
-ts_data_filename = path_sorted / 'ts_and_meta_2m4m.npz'
+grouping_per_sex_hash = paths['sorted'] / "grouping_data_per_sex(gen_phen).pkl"
+grouping_hash = paths['sorted'] / "grouping_data_oip.pkl"
+cog_data_filtered_filename = paths['sorted'] / 'cog_data_sorted_2m4m.csv'
+ts_data_filename = paths['sorted'] / 'ts_and_meta_2m4m.npz'
 
 
 # =================== Load data snippets ======================================

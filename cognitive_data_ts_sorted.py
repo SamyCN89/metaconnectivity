@@ -6,15 +6,15 @@ Created on Mon Sep 23 13:26:30 2024
 @author: samy
 """
 #%%
-import numpy as np
+from pathlib import Path
 import os
+import numpy as np
+import matplotlib.pyplot as plt
 import pandas as pd
 import pickle
-from pathlib import Path
 
-from fun_loaddata import extract_hash_numbers
-from fun_utils import filename_sort_mat, load_matdata, classify_phenotypes, make_combination_masks, make_masks
-import matplotlib.pyplot as plt
+from shared_code.fun_loaddata import extract_hash_numbers
+from shared_code.fun_utils import filename_sort_mat, load_matdata, classify_phenotypes, make_combination_masks, make_masks, get_paths
 import time
 
 # =============================================================================
@@ -29,41 +29,47 @@ import time
 # #Define paths, folders and hash
 # =============================================================================
 
-TRANSIENT = 50 #TRansient to remove
+# =============================================================================
+TRANSIENT = 50 #Transient to remove
 THRESHOLD = 0.2 #Threshold for phenotype classification
-# Define the root directory based on whether an external disk is used
-external_disk = True
-# external_disk = False
-if external_disk==True:
-    root = Path('/media/samy/Elements1/Proyectos/LauraHarsan/script_mc/')
-else:    
-    root = Path('/home/samy/Bureau/Proyect/LauraHarsan/Ines/')
 
+#%% Define paths, folders and hash
+# =============================================================================
+# #Define paths, folders and hash
+# =============================================================================
+
+
+# Define the timeseries directory
+timeseries_folder = 'Timecourses_updated_03052024'
+# Will prioritize PROJECT_DATA_ROOT if set
+paths = get_paths(dataset_name='ines_abdullah', timecourse_folder=timeseries_folder)
 folders = {'2mois': 'TC_2months', '4mois': 'TC_4months'}
 
-path_results = root / 'results'
-path_figures = root / 'fig'
 
-path_timeseries = path_results / 'Timecourses_updated_03052024'
-path_cog_data   = path_timeseries / 'ROIs.xlsx'
-path_sorted = path_results / 'sorted_data/'
 
-# Ensure save path exists
-path_sorted.mkdir(parents=True, exist_ok=True)
+# path_results = root / 'results'
+# path_figures = root / 'fig'
+
+# paths['timeseries'] = path_results / 'Timecourses_updated_03052024'
+# paths['cog_data']   = paths['timeseries'] / 'ROIs.xlsx'
+# paths['sorted'] = path_results / 'sorted_data/'
+
+# # Ensure save path exists
+# paths['sorted'].mkdir(parents=True, exist_ok=True)
 #%% Load cog data and intersect if there is in 2M and 4M
 # =============================================================================
 # Load cognitive data from .xlsx document
 # =============================================================================
 #Load cognitive data
-cog_data_df     = pd.read_excel(path_cog_data, sheet_name='Exclusions')
-data_roi        = pd.read_excel(path_cog_data, sheet_name='41_Allen').to_numpy()
+cog_data_df     = pd.read_excel(paths['cog_data'], sheet_name='Exclusions')
+data_roi        = pd.read_excel(paths['cog_data'], sheet_name='41_Allen').to_numpy()
 
 # =============================================================================
 # Intersect the functional filenames hash for 2 and 4 months
 # =============================================================================
 
 # Retrieve filenames and hash numbers
-filenames       = {period: filename_sort_mat(os.path.join(path_timeseries, folder)) for period, folder in folders.items()}
+filenames       = {period: filename_sort_mat(os.path.join(paths['timeseries'], folder)) for period, folder in folders.items()}
 hash_numbers    = {period: extract_hash_numbers(filenames[period]) for period in filenames}
 common_ids, intind_2m, intind_4m = np.intersect1d(hash_numbers['2mois'], hash_numbers['4mois'], return_indices=True)
 print('Number of intersected elements in 2m and 4m :' , len(common_ids))
@@ -105,8 +111,8 @@ common_files_2m = np.array(filenames['2mois'])[index_tsintcog[0]]
 common_files_4m = np.array(filenames['4mois'])[index_tsintcog[1]]
 
 #Loading the time series of the intersected data
-ts2m = load_matdata(path_timeseries, folders['2mois'], common_files_2m	)
-ts4m = load_matdata(path_timeseries, folders['4mois'], common_files_4m)
+ts2m = load_matdata(paths['timeseries'], folders['2mois'], common_files_2m	)
+ts4m = load_matdata(paths['timeseries'], folders['4mois'], common_files_4m)
 
 #Remove the first transient of data
 ts2m = ts2m[:,TRANSIENT:]
@@ -200,10 +206,10 @@ label_variables_per_sex = (label_combo_oip, label_combo_nor, label_combo_gen)
 # Save results
 # =============================================================================
 #Cognitive data
-cog_data_filtered.to_csv(path_sorted / 'cog_data_sorted_2m4m.csv', index=False)
+cog_data_filtered.to_csv(paths['sorted'] / 'cog_data_sorted_2m4m.csv', index=False)
 
 #time series plus metadata
-np.savez(path_sorted / 'ts_and_meta_2m4m.npz',
+np.savez(paths['sorted'] / 'ts_and_meta_2m4m.npz',
          ts=ts,  
          n_animals=n_animals, 
     total_tp=total_tp, 
@@ -213,10 +219,10 @@ np.savez(path_sorted / 'ts_and_meta_2m4m.npz',
     )
 
 #mask and labels for groups
-with open(path_sorted / "grouping_data_oip.pkl", "wb") as f:
+with open(paths['sorted'] / "grouping_data_oip.pkl", "wb") as f:
     pickle.dump((mask_groups, label_variables), f)
 
-with open(path_sorted / "grouping_data_per_sex(gen_phen).pkl", "wb") as f:
+with open(paths['sorted'] / "grouping_data_per_sex(gen_phen).pkl", "wb") as f:
     pickle.dump((mask_groups_per_sex, label_variables_per_sex), f)
 
 #%% Load pre-process data
@@ -224,8 +230,8 @@ with open(path_sorted / "grouping_data_per_sex(gen_phen).pkl", "wb") as f:
 # # Load result
 # =============================================================================
 
-cog_data_filtered = pd.read_csv(path_sorted / 'cog_data_sorted_2m4m.csv')
-data_ts = np.load(path_sorted / 'ts_and_meta_2m4m.npz')
+cog_data_filtered = pd.read_csv(paths['sorted'] / 'cog_data_sorted_2m4m.csv')
+data_ts = np.load(paths['sorted'] / 'ts_and_meta_2m4m.npz')
 
 ts=data_ts['ts']
 n_animals = data_ts['n_animals']
@@ -233,3 +239,5 @@ total_tp = data_ts['total_tp']
 regions = data_ts['regions']
 is_2month_old = data_ts['is_2month_old']
 anat_labels= data_ts['anat_labels']
+
+# %%
